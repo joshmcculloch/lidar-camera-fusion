@@ -2,15 +2,62 @@
 #include "sensor_msgs/Image.h"
 #include "sensor_msgs/PointCloud2.h"
 
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
+
+#include <pcl/conversions.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/calib3d/calib3d.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
+
+
+using namespace cv;
+
+ros::Publisher cloud_pub;
+ros::Publisher rimg_pub;
 
 void cameraCallback(const sensor_msgs::Image::ConstPtr& img)
 {
   ROS_INFO("Got Image!");
+
+  Size imageSize = Size(img->width,img->height);
+  cv_bridge::CvImagePtr cv_cam = cv_bridge::toCvCopy(img, "8UC3");
+
+  float distMat[9] = {754.53892599834842f, 0.0f, 319.5f,
+      0.0f, 754.53892599834842f, 239.5f,
+      0.0f, 0.0f, 1.0f};
+
+  float distCoef[5] = {5.2038044809064208e-03, 1.5288890999953295e-01, 0., 0., -1.7854072082302619e+00};
+
+  Mat cameraMatrix, distCoeffs;
+  cameraMatrix = Mat(3,3, CV_32F,distMat);
+  distCoeffs = Mat(5,1, CV_32F,distCoef);
+
+
+  Mat rect_view, map1, map2;
+
+  initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(),
+              getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0),
+              imageSize, CV_16SC2, map1, map2);
+
+  remap(cv_cam->image, rect_view, map1, map2, INTER_LINEAR);
+
+  sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "rgb8", rect_view).toImageMsg();
+
+  rimg_pub.publish(msg);
+
 }
 
 void lidarCallback(const sensor_msgs::PointCloud2::ConstPtr& scan)
 {
-  ROS_INFO("Got Pointcloud!");
+  ROS_INFO("Got point cloud!");
+
+  cloud_pub.publish(scan);
 }
 
 
@@ -22,6 +69,9 @@ int main(int argc, char **argv)
 
  ros::Subscriber sub1 = n.subscribe("/usb_cam/image_raw", 100, cameraCallback);
  ros::Subscriber sub2 = n.subscribe("/velodyne_points", 100, lidarCallback);
+
+ cloud_pub = n.advertise<sensor_msgs::PointCloud2>("colour_cloud", 1000);
+ rimg_pub = n.advertise<sensor_msgs::Image>("rect_image", 1000);
  ros::spin();
 
  return 0;
