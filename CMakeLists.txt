@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   pcl_ros
   cv_bridge
+  loam_velodyne
 )
 
 find_package(OpenCV REQUIRED)

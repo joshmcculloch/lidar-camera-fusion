@@ -8,11 +8,14 @@
 #include <pcl/conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/highgui/highgui.hpp>
+
+#include <Eigen/Dense>
 
 
 
@@ -20,6 +23,11 @@ using namespace cv;
 
 ros::Publisher cloud_pub;
 ros::Publisher rimg_pub;
+cv::Mat rect_view;
+Eigen::MatrixXd tmat;
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr laserCloudIn(new pcl::PointCloud<pcl::PointXYZ>());
+
 
 void cameraCallback(const sensor_msgs::Image::ConstPtr& img)
 {
@@ -39,7 +47,7 @@ void cameraCallback(const sensor_msgs::Image::ConstPtr& img)
   distCoeffs = Mat(5,1, CV_32F,distCoef);
 
 
-  Mat rect_view, map1, map2;
+  Mat map1, map2;
 
   initUndistortRectifyMap(cameraMatrix, distCoeffs, Mat(),
               getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0),
@@ -56,7 +64,7 @@ void cameraCallback(const sensor_msgs::Image::ConstPtr& img)
 void lidarCallback(const sensor_msgs::PointCloud2::ConstPtr& scan)
 {
   ROS_INFO("Got point cloud!");
-
+  pcl::fromROSMsg(*scan, *laserCloudIn);
   cloud_pub.publish(scan);
 }
 
@@ -65,6 +73,11 @@ int main(int argc, char **argv)
 {
  ros::init(argc, argv, "colour_cloud");
  
+ tmat = Eigen::MatrixXd(3,3);
+ tmat <<   754.53892599834842f, 0.0f,                319.5f,
+           0.0f,                754.53892599834842f, 239.5f,
+           0.0f,                0.0f,                1.0f;
+
  ros::NodeHandle n;
 
  ros::Subscriber sub1 = n.subscribe("/usb_cam/image_raw", 100, cameraCallback);
