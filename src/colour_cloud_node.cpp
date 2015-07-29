@@ -61,10 +61,9 @@ void cameraCallback(const sensor_msgs::Image::ConstPtr& img)
 
   remap(cv_cam->image, rect_view, map1, map2, INTER_LINEAR);
 
+  /*
   // Render points on image
-  unsigned int count = 0;
   for(unsigned int i=0; i<laserCloudIn->size(); i++) {
-      count += 1;
       Eigen::Vector3d point_3d;
       Eigen::Vector3d point_t3d;
       point_3d << laserCloudIn->at(i).x,
@@ -76,7 +75,7 @@ void cameraCallback(const sensor_msgs::Image::ConstPtr& img)
               Scalar(255-(25*laserCloudIn->at(i).y),0,0), 1);
       }
   }
-
+  */
   sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "rgb8", rect_view).toImageMsg();
 
   rimg_pub.publish(msg);
@@ -87,7 +86,46 @@ void lidarCallback(const sensor_msgs::PointCloud2::ConstPtr& scan)
 {
   ROS_INFO("Got point cloud!");
   pcl::fromROSMsg(*scan, *laserCloudIn);
-  cloud_pub.publish(scan);
+
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr colour_laser_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+
+    for(unsigned int i=0; i<laserCloudIn->size(); i++) {
+        float x3d = laserCloudIn->at(i).x;
+        float y3d = laserCloudIn->at(i).y;
+        float z3d = laserCloudIn->at(i).z;
+
+        Eigen::Vector3d point_3d;
+        Eigen::Vector3d point_t3d;
+        point_3d << x3d, -z3d, y3d;
+        point_t3d = tmat * point_3d;
+
+        pcl::PointXYZRGB p;
+        p.x = x3d;
+        p.y = y3d;
+        p.z = z3d;
+        p.r = 0;
+        p.g = 0;
+        p.b = 0;
+        if (point_t3d[2] > 0) {
+            int image_u = (int)(point_t3d[0]/point_t3d[2]);
+            int image_v = (int)(point_t3d[1]/point_t3d[2]);
+
+            if (0 <= image_u && image_u < rect_view.size().width &&
+                0 <= image_v && image_v < rect_view.size().height) {
+              Vec3b colour= rect_view.at<Vec3b>(Point(image_u, image_v));
+              p.r = colour[0];
+              p.g = colour[1];
+              p.b = colour[2];
+            }
+
+        }
+        colour_laser_cloud->push_back(p);
+    }
+
+  sensor_msgs::PointCloud2 scan_color = sensor_msgs::PointCloud2();
+  pcl::toROSMsg(*colour_laser_cloud, scan_color);
+  scan_color.header.frame_id = "velodyne";
+  cloud_pub.publish(scan_color);
 }
 
 
