@@ -117,9 +117,16 @@ include_directories(
 
 ## Declare a cpp executable
 add_executable(colour_cloud_node src/colour_cloud_node.cpp)
+add_executable(scan_archiver_node src/scan_archiver.cpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(colour_cloud_node
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBRARIES}
+   ${PCL_LIBRARIES}
+)
+
+target_link_libraries(scan_archiver_node
    ${catkin_LIBRARIES}
    ${OpenCV_LIBRARIES}
    ${PCL_LIBRARIES}
